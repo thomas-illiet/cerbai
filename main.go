@@ -12,9 +12,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/thomas-illiet/cerbai/internal/config"
+	_ "github.com/thomas-illiet/cerbai/internal/metrics"
 	"github.com/thomas-illiet/cerbai/internal/middleware"
 	"github.com/thomas-illiet/cerbai/internal/proxy"
 	"github.com/thomas-illiet/cerbai/internal/token"
@@ -113,13 +115,14 @@ func run(v *viper.Viper) error {
 	}
 
 	mux := http.NewServeMux()
-	// /healthz is always public — exempt from proxy auth.
+	// /healthz and /metrics are always public — exempt from proxy auth.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("health check", "remote_addr", r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	mux.Handle("/", middleware.BearerAuth(cfg.ProxyToken, proxyHandler))
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/", middleware.Metrics(middleware.BearerAuth(cfg.ProxyToken, proxyHandler)))
 
 	srv := &http.Server{
 		Addr:    cfg.ListenAddr,
