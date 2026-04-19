@@ -1,14 +1,6 @@
 # CerbAI
 
-```none
-   ██████╗███████╗██████╗ ██████╗  █████╗ ██╗
-  ██╔════╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║
-  ██║     █████╗  ██████╔╝██████╔╝███████║██║
-  ██║     ██╔══╝  ██╔══██╗██╔══██╗██╔══██║██║
-  ╚██████╗███████╗██║  ██║██████╔╝██║  ██║██║
-   ╚═════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝
-  LLM Proxy — mTLS · JWT Cache · OpenAI Streaming
-```
+![banner](assets/banner.png)
 
 [![CI](https://github.com/thomas-illiet/cerbai/actions/workflows/ci.yml/badge.svg)](https://github.com/thomas-illiet/cerbai/actions/workflows/ci.yml)
 [![Release](https://github.com/thomas-illiet/cerbai/actions/workflows/release.yml/badge.svg)](https://github.com/thomas-illiet/cerbai/actions/workflows/release.yml)
