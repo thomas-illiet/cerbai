@@ -26,17 +26,11 @@ var (
 	buildDate = "unknown"
 )
 
-const banner = `
-   ██████╗███████╗██████╗ ██████╗  █████╗ ██╗
-  ██╔════╝██╔════╝██╔══██╗██╔══██╗██╔══██╗██║
-  ██║     █████╗  ██████╔╝██████╔╝███████║██║
-  ██║     ██╔══╝  ██╔══██╗██╔══██╗██╔══██║██║
-  ╚██████╗███████╗██║  ██║██████╔╝██║  ██║██║
-   ╚═════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝
-  LLM Proxy — mTLS · JWT Cache · OpenAI Streaming
-`
-
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	v := viper.New()
 
 	rootCmd := &cobra.Command{
@@ -44,7 +38,8 @@ func main() {
 		Short: "CerbAI — LLM reverse proxy with mTLS JWT authentication",
 		Long: `CerbAI proxies requests to an internal LLM service, handling OAuth2
 client_credentials authentication over mTLS and caching the resulting JWT.`,
-		SilenceUsage: true,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(v)
 		},
@@ -53,13 +48,12 @@ client_credentials authentication over mTLS and caching the resulting JWT.`,
 	config.RegisterFlags(rootCmd, v)
 
 	if err := rootCmd.Execute(); err != nil {
+		slog.Error("fatal error", "error", err)
 		os.Exit(1)
 	}
 }
 
 func run(v *viper.Viper) error {
-	fmt.Print(banner)
-
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})))
