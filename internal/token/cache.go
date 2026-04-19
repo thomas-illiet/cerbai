@@ -32,12 +32,12 @@ type fetcher struct {
 
 func newFetcher(tlsCfg *tls.Config, endpoint, clientID, secret string) *fetcher {
 	// tlsCfg may be nil (standard HTTPS) or non-nil (custom CA / mTLS).
-	var transport *http.Transport
+	client := &http.Client{Timeout: 10 * time.Second}
 	if tlsCfg != nil {
-		transport = &http.Transport{TLSClientConfig: tlsCfg}
+		client.Transport = &http.Transport{TLSClientConfig: tlsCfg}
 	}
 	return &fetcher{
-		httpClient:    &http.Client{Transport: transport, Timeout: 10 * time.Second},
+		httpClient:    client,
 		tokenEndpoint: endpoint,
 		clientID:      clientID,
 		clientSecret:  secret,
@@ -95,9 +95,14 @@ func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (st
 	return tr.AccessToken, ttl, nil
 }
 
+// tokenFetcher is the interface for obtaining OAuth2 tokens from the endpoint.
+type tokenFetcher interface {
+	getToken(ctx context.Context, configuredTTL time.Duration) (string, time.Duration, error)
+}
+
 // MemoryCache is a thread-safe in-memory JWT token cache.
 type MemoryCache struct {
-	*fetcher
+	fetcher       tokenFetcher
 	mu            sync.RWMutex
 	configuredTTL time.Duration
 	cachedToken   string
@@ -132,7 +137,7 @@ func (c *MemoryCache) Fetch(ctx context.Context) (string, error) {
 
 	slog.Info("memory cache miss, refreshing token")
 	start := time.Now()
-	tok, effectiveTTL, err := c.getToken(ctx, c.configuredTTL)
+	tok, effectiveTTL, err := c.fetcher.getToken(ctx, c.configuredTTL)
 	if err != nil {
 		return "", fmt.Errorf("token refresh: %w", err)
 	}
