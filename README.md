@@ -254,10 +254,14 @@ The release workflow builds `linux/amd64` and `linux/arm64` images and publishes
 
 ```none
 internal/
-├── config/config.go    — Cobra flags, CERBAI_* env vars, validation
-├── token/
-│   ├── cache.go        — shared mTLS fetcher + MemoryCache (RWMutex double-check)
-│   └── redis.go        — RedisCache (atomic SET EX)
-└── proxy/handler.go    — httputil.ReverseProxy, FlushInterval:-1, token injection
-main.go                 — Cobra command, /healthz, graceful shutdown, build metadata
+├── config/
+│   └── config.go       — Viper config, Cobra flags, TLS config builder
+├── middleware/
+│   └── auth.go         — Bearer token auth middleware for proxy access
+├── proxy/
+│   └── handler.go      — httputil.ReverseProxy, token injection, SSE streaming
+└── token/
+    ├── cache.go        — In-memory cache (RWMutex double-check) + OAuth2 fetcher
+    └── redis.go        — Redis cache (atomic SET EX, multi-replica safe)
+main.go                 — Cobra CLI, cache selection, token warmup, graceful shutdown
 ```
