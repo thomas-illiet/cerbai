@@ -55,6 +55,7 @@ func (c *RedisCache) Fetch(ctx context.Context) (string, error) {
 	}
 
 	slog.Info("redis cache miss, refreshing token")
+	start := time.Now()
 	tok, ttl, err := c.getToken(ctx, c.configuredTTL)
 	if err != nil {
 		return "", fmt.Errorf("token refresh: %w", err)
@@ -64,7 +65,7 @@ func (c *RedisCache) Fetch(ctx context.Context) (string, error) {
 		// Non-fatal: return the token even if caching fails.
 		slog.Warn("redis set failed, token will not be cached", "error", err)
 	} else {
-		slog.Info("token refreshed", "ttl", ttl, "backend", "redis")
+		slog.Info("token refreshed", "ttl", ttl, "backend", "redis", "duration_ms", time.Since(start).Milliseconds())
 	}
 
 	return tok, nil

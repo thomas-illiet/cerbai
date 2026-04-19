@@ -27,6 +27,7 @@ type Config struct {
 	TokenPrefix   string
 	RedisURL      string // optional — empty means in-memory cache
 	ProxyToken    string // optional — empty disables proxy auth
+	LogLevel      string // debug, info, warn, error
 }
 
 // RegisterFlags registers all CLI flags on cmd and binds them to viper.
@@ -47,6 +48,7 @@ func RegisterFlags(cmd *cobra.Command, v *viper.Viper) {
 	f.String("token-prefix", "Bearer ", "Token value prefix, e.g. 'Bearer ' (env: CERBAI_TOKEN_PREFIX)")
 	f.String("redis-url", "", "Redis URL for shared token cache, optional (env: CERBAI_REDIS_URL)")
 	f.String("proxy-token", "", "Bearer token required to use the proxy, optional — omit to disable auth (env: CERBAI_PROXY_TOKEN)")
+	f.String("log-level", "info", "Log level: debug, info, warn, error (env: CERBAI_LOG_LEVEL)")
 
 	v.SetEnvPrefix("CERBAI")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -70,6 +72,7 @@ func Load(v *viper.Viper) (*Config, error) {
 		TokenPrefix:   v.GetString("token-prefix"),
 		RedisURL:      v.GetString("redis-url"),
 		ProxyToken:    v.GetString("proxy-token"),
+		LogLevel:      v.GetString("log-level"),
 	}
 
 	if err := validate(cfg); err != nil {

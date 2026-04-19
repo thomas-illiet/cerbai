@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -17,10 +18,12 @@ func BearerAuth(token string, next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(r.Header.Get("Authorization")) != expected {
+			slog.Warn("auth failed", "path", r.URL.Path, "method", r.Method, "remote_addr", r.RemoteAddr)
 			w.Header().Set("WWW-Authenticate", `Bearer realm="cerbai"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		slog.Debug("auth ok", "path", r.URL.Path, "method", r.Method, "remote_addr", r.RemoteAddr)
 		next.ServeHTTP(w, r)
 	})
 }

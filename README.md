@@ -85,6 +85,7 @@ Flags:
       --token-endpoint string     OAuth2 token endpoint URL (env: CERBAI_TOKEN_ENDPOINT)
       --token-header string       Header name to inject the token into (env: CERBAI_TOKEN_HEADER) (default "Authorization")
       --token-prefix string       Token value prefix (env: CERBAI_TOKEN_PREFIX) (default "Bearer ")
+      --log-level string          Log level: debug, info, warn, error (env: CERBAI_LOG_LEVEL) (default "info")
 ```
 
 ### Environment variables
@@ -104,6 +105,7 @@ Flags:
 | `CERBAI_TOKEN_PREFIX`    | `Bearer `       | Token value prefix                            |
 | `CERBAI_PROXY_TOKEN`     | —               | Bearer token to access the proxy (optional)   |
 | `CERBAI_REDIS_URL`       | —               | Redis URL (optional, see Token cache section) |
+| `CERBAI_LOG_LEVEL`       | `info`          | Log level: debug, info, warn, error           |
 
 ## Running
 
@@ -225,13 +227,34 @@ for chunk in stream:
 
 ## Logs
 
-Structured JSON logs on stdout:
+Structured JSON logs on stdout. Set log level with `--log-level` or `CERBAI_LOG_LEVEL`:
+
+```bash
+./cerbai --log-level debug ...
+# or
+export CERBAI_LOG_LEVEL=debug
+```
+
+Available levels: `debug`, `info`, `warn`, `error` (default: `info`)
+
+### Example logs
 
 ```json
 {"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"starting CerbAI","version":"v1.2.0","commit":"abc1234","build_date":"2026-04-19T10:00:00Z"}
 {"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"config loaded","listen_addr":":8080","llm_url":"https://llm.internal.example.com","token_cache_ttl":"5m0s","redis":true}
-{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"token refreshed","ttl":"4m30s","backend":"redis"}
+{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"token refreshed","ttl":"4m30s","backend":"redis","duration_ms":45}
 {"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"starting proxy server","addr":":8080"}
+```
+
+### Debug level logs
+
+At `debug` level, additional request-level logging:
+
+```json
+{"time":"2026-04-19T10:00:01Z","level":"DEBUG","msg":"incoming request","path":"/v1/chat/completions","method":"POST","remote_addr":"127.0.0.1:54321"}
+{"time":"2026-04-19T10:00:01Z","level":"DEBUG","msg":"token fetched","duration_ms":2}
+{"time":"2026-04-19T10:00:01Z","level":"DEBUG","msg":"request completed","path":"/v1/chat/completions","method":"POST","duration_ms":1250}
+{"time":"2026-04-19T10:00:02Z","level":"WARN","msg":"auth failed","path":"/v1/chat/completions","method":"POST","remote_addr":"127.0.0.1:54322"}
 ```
 
 ## CI / CD

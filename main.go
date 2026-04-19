@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,10 +28,6 @@ var (
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})))
-
 	v := viper.New()
 
 	rootCmd := &cobra.Command{
@@ -54,8 +51,19 @@ client_credentials authentication over mTLS and caching the resulting JWT.`,
 }
 
 func run(v *viper.Viper) error {
+	// Parse log level from config.
+	level := slog.LevelInfo
+	switch strings.ToLower(v.GetString("log-level")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: level,
 	})))
 
 	slog.Info("starting CerbAI", "version", version, "commit", commit, "build_date", buildDate)
@@ -107,6 +115,7 @@ func run(v *viper.Viper) error {
 	mux := http.NewServeMux()
 	// /healthz is always public — exempt from proxy auth.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		slog.Debug("health check", "remote_addr", r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})

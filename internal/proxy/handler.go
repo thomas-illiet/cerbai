@@ -7,6 +7,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // TokenFetcher returns a valid JWT access token.
@@ -88,10 +89,17 @@ func New(targetURL string, cache TokenFetcher, cfg HandlerConfig) (*Handler, err
 // ServeHTTP pre-fetches the token so auth errors surface as 502 before the
 // reverse proxy Director runs (Director has no error return value).
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	slog.Debug("incoming request", "path", r.URL.Path, "method", r.Method, "remote_addr", r.RemoteAddr)
+
+	tokenStart := time.Now()
 	if _, err := h.cache.Fetch(r.Context()); err != nil {
-		slog.Error("token fetch failed, refusing to proxy", "error", err)
+		slog.Error("token fetch failed, refusing to proxy", "error", err, "duration_ms", time.Since(tokenStart).Milliseconds())
 		http.Error(w, "upstream authentication failed", http.StatusBadGateway)
 		return
 	}
+	slog.Debug("token fetched", "duration_ms", time.Since(tokenStart).Milliseconds())
+
 	h.rp.ServeHTTP(w, r)
+	slog.Debug("request completed", "path", r.URL.Path, "method", r.Method, "duration_ms", time.Since(start).Milliseconds())
 }

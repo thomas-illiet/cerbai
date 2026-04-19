@@ -117,9 +117,8 @@ func (c *MemoryCache) Fetch(ctx context.Context) (string, error) {
 	// Fast path: read-lock, return cached token if still valid.
 	c.mu.RLock()
 	if c.cachedToken != "" && time.Now().Before(c.expiresAt) {
-		tok := c.cachedToken
 		c.mu.RUnlock()
-		return tok, nil
+		return c.cachedToken, nil
 	}
 	c.mu.RUnlock()
 
@@ -132,13 +131,13 @@ func (c *MemoryCache) Fetch(ctx context.Context) (string, error) {
 	}
 
 	slog.Info("memory cache miss, refreshing token")
-	tok, ttl, err := c.getToken(ctx, c.configuredTTL)
+	start := time.Now()
+	tok, effectiveTTL, err := c.getToken(ctx, c.configuredTTL)
 	if err != nil {
 		return "", fmt.Errorf("token refresh: %w", err)
 	}
-
 	c.cachedToken = tok
-	c.expiresAt = time.Now().Add(ttl)
-	slog.Info("token refreshed", "expires_at", c.expiresAt.Format(time.RFC3339), "backend", "memory")
+	c.expiresAt = time.Now().Add(effectiveTTL)
+	slog.Info("token refreshed", "expires_at", c.expiresAt.Format(time.RFC3339), "backend", "memory", "duration_ms", time.Since(start).Milliseconds())
 	return tok, nil
 }
