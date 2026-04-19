@@ -21,9 +21,9 @@ CerbAI is a lightweight HTTP reverse proxy written in Go, designed for corporate
 Client (OpenAI SDK / curl)
         │
         ▼
-   ┌─────────┐    client_credentials   ┌──────────────┐
-   │ CerbAI  │ ─────── mTLS ─────────► │ Token Service│
-   │  :8080  │ ◄──── JWT token ─────── └──────────────┘
+   ┌─────────┐    client_credentials   ┌───────────────┐
+   │ CerbAI  │ ─────── mTLS ─────────► │ Token Service │
+   │  :8080  │ ◄──── JWT token ─────── └───────────────┘
    └────┬────┘    (memory or Redis)
         │  Authorization: Bearer <token>
         ▼
