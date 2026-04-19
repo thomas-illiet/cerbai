@@ -1,0 +1,9 @@
+.git
+.github
+*.md
+certs/
+*.crt
+*.key
+*.pem
+.env*
+docker-compose*.yml

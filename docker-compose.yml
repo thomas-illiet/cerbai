@@ -1,0 +1,41 @@
+services:
+  cerbai:
+    build: .
+    image: ghcr.io/thomas-illiet/cerbai:latest
+    ports:
+      - "8080:8080"
+    environment:
+      CERBAI_LLM_URL: ${CERBAI_LLM_URL}
+      CERBAI_TOKEN_ENDPOINT: ${CERBAI_TOKEN_ENDPOINT}
+      CERBAI_CLIENT_ID: ${CERBAI_CLIENT_ID}
+      CERBAI_CLIENT_SECRET: ${CERBAI_CLIENT_SECRET}
+      CERBAI_TLS_CERT_FILE: /etc/certs/client.crt
+      CERBAI_TLS_KEY_FILE: /etc/certs/client.key
+      CERBAI_TLS_CA_FILE: /etc/certs/ca.crt
+      CERBAI_REDIS_URL: redis://redis:6379/0
+      CERBAI_TOKEN_CACHE_TTL: ${CERBAI_TOKEN_CACHE_TTL:-5m}
+    volumes:
+      - ./certs:/etc/certs:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    # Disable persistence — token cache is ephemeral by design.
+    command: redis-server --save "" --appendonly no
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
