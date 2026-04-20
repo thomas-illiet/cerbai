@@ -44,9 +44,28 @@ func newFetcher(tlsCfg *tls.Config, endpoint, clientID, secret string) *fetcher 
 	}
 }
 
+// obfuscate returns the first 4 chars of s followed by "***", or "<empty>" if s is blank.
+func obfuscate(s string) string {
+	if s == "" {
+		return "<empty>"
+	}
+	if len(s) <= 4 {
+		return "***"
+	}
+	return s[:4] + "***"
+}
+
 // getToken calls the token endpoint and returns the access token along with
 // the effective TTL to cache it for (min of configuredTTL and expires_in-30s).
 func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (string, time.Duration, error) {
+	slog.Debug("fetching token",
+		"endpoint", f.tokenEndpoint,
+		"client_id", obfuscate(f.clientID),
+		"client_secret", obfuscate(f.clientSecret),
+		"client_id_set", f.clientID != "",
+		"client_secret_set", f.clientSecret != "",
+	)
+
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
 	form.Set("client_id", f.clientID)
@@ -65,6 +84,7 @@ func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (st
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		slog.Debug("token endpoint error", "status", resp.StatusCode, "endpoint", f.tokenEndpoint)
 		return "", 0, fmt.Errorf("token endpoint returned HTTP %d", resp.StatusCode)
 	}
 
