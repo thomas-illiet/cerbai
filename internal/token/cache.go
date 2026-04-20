@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -84,7 +85,12 @@ func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (st
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Debug("token endpoint error", "status", resp.StatusCode, "endpoint", f.tokenEndpoint)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		slog.Debug("token endpoint error",
+			"status", resp.StatusCode,
+			"endpoint", f.tokenEndpoint,
+			"body", strings.TrimSpace(string(body)),
+		)
 		return "", 0, fmt.Errorf("token endpoint returned HTTP %d", resp.StatusCode)
 	}
 
