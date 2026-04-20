@@ -31,7 +31,7 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name:   "valid config",
-			target: "http://localhost:8080",
+			target: "http://localhost:8085",
 			cache:  &mockTokenFetcher{token: "test-token"},
 			cfg: HandlerConfig{
 				TokenHeader: "Authorization",
@@ -48,7 +48,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name:   "custom header",
-			target: "http://localhost:8080",
+			target: "http://localhost:8085",
 			cache:  &mockTokenFetcher{token: "test-token"},
 			cfg: HandlerConfig{
 				TokenHeader: "X-Custom-Auth",

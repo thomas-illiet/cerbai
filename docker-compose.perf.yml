@@ -1,0 +1,16 @@
+services:
+  cerbai:
+    environment:
+      CERBAI_LLM_URL: http://mock-server:9090
+      CERBAI_TOKEN_ENDPOINT: http://mock-server:9090/token
+      CERBAI_CLIENT_ID: perf-client
+      CERBAI_CLIENT_SECRET: perf-secret
+      CERBAI_TLS_CERT_FILE: ""
+      CERBAI_TLS_KEY_FILE: ""
+      CERBAI_TLS_CA_FILE: ""
+    volumes: []
+    depends_on:
+      redis:
+        condition: service_healthy
+      mock-server:
+        condition: service_healthy

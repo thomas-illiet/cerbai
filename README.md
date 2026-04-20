@@ -15,7 +15,7 @@ Client (OpenAI SDK / curl)
         ▼
    ┌─────────┐    client_credentials   ┌───────────────┐
    │ CerbAI  │ ─────── mTLS ─────────► │ Token Service │
-   │  :8080  │ ◄──── JWT token ─────── └───────────────┘
+   │  :8085  │ ◄──── JWT token ─────── └───────────────┘
    └────┬────┘    (memory or Redis)
         │  Authorization: Bearer <token>
         ▼
@@ -66,7 +66,7 @@ Flags:
       --client-id string          OAuth2 client ID (env: CERBAI_CLIENT_ID)
       --client-secret string      OAuth2 client secret (env: CERBAI_CLIENT_SECRET)
   -h, --help                      help for cerbai
-      --listen-addr string        Address to listen on (env: CERBAI_LISTEN_ADDR) (default ":8080")
+      --listen-addr string        Address to listen on (env: CERBAI_LISTEN_ADDR) (default ":8085")
       --llm-url string            Upstream LLM base URL (env: CERBAI_LLM_URL)
       --proxy-token string        Bearer token required to use the proxy, optional (env: CERBAI_PROXY_TOKEN)
       --redis-url string          Redis URL for shared token cache, optional (env: CERBAI_REDIS_URL)
@@ -84,7 +84,7 @@ Flags:
 
 | Variable                 | Default         | Description                                   |
 | ------------------------ | --------------- | --------------------------------------------- |
-| `CERBAI_LISTEN_ADDR`     | `:8080`         | Address to listen on                          |
+| `CERBAI_LISTEN_ADDR`     | `:8085`         | Address to listen on                          |
 | `CERBAI_LLM_URL`         | —               | Upstream LLM base URL                         |
 | `CERBAI_TOKEN_ENDPOINT`  | —               | OAuth2 token endpoint URL                     |
 | `CERBAI_CLIENT_ID`       | —               | OAuth2 client ID                              |
@@ -166,7 +166,7 @@ When `--proxy-token` (or `CERBAI_PROXY_TOKEN`) is set, all requests to the proxy
 ```
 
 ```bash
-curl http://localhost:8080/v1/chat/completions \
+curl http://localhost:8085/v1/chat/completions \
   -H "Authorization: Bearer my-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello!"}]}'
@@ -179,21 +179,21 @@ Requests without a valid token receive `401 Unauthorized`. The `/healthz` endpoi
 CerbAI exposes a health endpoint at `GET /healthz` that returns `200 ok` when the process is running.
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8085/healthz
 ```
 
 ## Usage
 
-Point your OpenAI-compatible client at `http://localhost:8080`:
+Point your OpenAI-compatible client at `http://localhost:8085`:
 
 ```bash
 # Non-streaming
-curl http://localhost:8080/v1/chat/completions \
+curl http://localhost:8085/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello!"}]}'
 
 # SSE streaming
-curl http://localhost:8080/v1/chat/completions \
+curl http://localhost:8085/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-4","stream":true,"messages":[{"role":"user","content":"Hello!"}]}'
 ```
@@ -204,7 +204,7 @@ Python (OpenAI SDK):
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:8080/v1",
+    base_url="http://localhost:8085/v1",
     api_key="not-used",  # token is managed by CerbAI
 )
 
@@ -233,9 +233,9 @@ Available levels: `debug`, `info`, `warn`, `error` (default: `info`)
 
 ```json
 {"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"starting CerbAI","version":"v1.2.0","commit":"abc1234","build_date":"2026-04-19T10:00:00Z"}
-{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"config loaded","listen_addr":":8080","llm_url":"https://llm.internal.example.com","token_cache_ttl":"5m0s","redis":true}
+{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"config loaded","listen_addr":":8085","llm_url":"https://llm.internal.example.com","token_cache_ttl":"5m0s","redis":true}
 {"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"token refreshed","ttl":"4m30s","backend":"redis","duration_ms":45}
-{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"starting proxy server","addr":":8080"}
+{"time":"2026-04-19T10:00:00Z","level":"INFO","msg":"starting proxy server","addr":":8085"}
 ```
 
 ### Debug level logs
@@ -247,6 +247,84 @@ At `debug` level, additional request-level logging:
 {"time":"2026-04-19T10:00:01Z","level":"DEBUG","msg":"token fetched","duration_ms":2}
 {"time":"2026-04-19T10:00:01Z","level":"DEBUG","msg":"request completed","path":"/v1/chat/completions","method":"POST","duration_ms":1250}
 {"time":"2026-04-19T10:00:02Z","level":"WARN","msg":"auth failed","path":"/v1/chat/completions","method":"POST","remote_addr":"127.0.0.1:54322"}
+```
+
+## Performance testing
+
+CerbAI ships with a [k6](https://k6.io) performance test suite. Tests run entirely locally via Docker Compose against a lightweight Go mock server that simulates the OAuth2 token endpoint and the LLM API — no real credentials or upstream required.
+
+### Architecture
+
+```none
+k6 ──► cerbai :8085 ──► mock-server :9090
+                │              │
+                │         POST /token          (fake OAuth2 response)
+                └────────► POST /v1/chat/completions  (fake LLM response)
+```
+
+### Prerequisites
+
+- Docker with Compose plugin
+
+### Quick start
+
+```bash
+# Build the mock server image (once)
+make perf-build
+
+# Smoke test — 2 VUs for 1 minute
+make perf-smoke
+
+# Load test — 50 VUs for 2 minutes
+make perf-load
+
+# Stress test — ramp up to 200 VUs to find the saturation point
+make perf-stress
+
+# Soak test — 20 VUs for 30 minutes (detects memory leaks and degradation)
+make perf-soak
+
+# Smoke → load → stress in sequence
+make perf-all
+
+# Tear down the perf environment
+make perf-down
+```
+
+### Test scenarios
+
+| Scenario | VUs            | Duration | p95 threshold | Error threshold |
+| -------- | -------------- | -------- | ------------- | --------------- |
+| Smoke    | 2              | 1 min    | < 500 ms      | < 1%            |
+| Load     | 50             | 2 min    | < 1 s         | < 2%            |
+| Stress   | 0 → 200 (ramp) | 8 min    | < 2 s         | < 5%            |
+| Soak     | 20             | 30 min   | < 1 s         | < 1%            |
+
+### Optional environment variables
+
+| Variable      | Default              | Description                                  |
+| ------------- | -------------------- | -------------------------------------------- |
+| `PROXY_URL`   | `http://cerbai:8085` | CerbAI address as seen from the k6 container |
+| `PROXY_TOKEN` | _(empty)_            | Bearer token if `--proxy-token` is set       |
+
+Pass them inline to override:
+
+```bash
+PROXY_TOKEN=my-secret make perf-smoke
+```
+
+### File layout
+
+```none
+tests/perf/
+├── mock_server/
+│   └── main.go          — Go mock server (OAuth2 token + LLM endpoints)
+└── k6/
+    ├── smoke.js
+    ├── load.js
+    ├── stress.js
+    └── soak.js
+docker-compose.perf.yml  — Override: points cerbai at mock-server (no TLS)
 ```
 
 ## CI / CD

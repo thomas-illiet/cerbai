@@ -33,6 +33,6 @@ COPY --from=builder /cerbai /app/cerbai
 
 USER cerbai
 
-EXPOSE 8080
+EXPOSE 8085
 
 ENTRYPOINT ["/app/cerbai"]

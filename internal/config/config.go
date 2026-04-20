@@ -14,17 +14,17 @@ import (
 
 // Config holds all proxy runtime configuration.
 type Config struct {
-	ListenAddr    string
-	LLMURL        string
-	TokenEndpoint string
-	ClientID      string
-	ClientSecret  string
-	TLSCertFile   string
-	TLSKeyFile    string
-	TLSCAFile     string
-	TokenCacheTTL time.Duration
-	TokenHeader   string
-	TokenPrefix   string
+	ListenAddr       string
+	LLMURL           string
+	TokenEndpoint    string
+	ClientID         string
+	ClientSecret     string
+	TLSCertFile      string
+	TLSKeyFile       string
+	TLSCAFile        string
+	TokenCacheTTL    time.Duration
+	TokenHeader      string
+	TokenPrefix      string
 	RedisURL         string // optional — empty means in-memory cache
 	ProxyToken       string // optional — empty disables proxy auth
 	LogLevel         string // debug, info, warn, error
@@ -36,7 +36,7 @@ type Config struct {
 func RegisterFlags(cmd *cobra.Command, v *viper.Viper) {
 	f := cmd.Flags()
 
-	f.String("listen-addr", ":8080", "Address to listen on (env: CERBAI_LISTEN_ADDR)")
+	f.String("listen-addr", ":8085", "Address to listen on (env: CERBAI_LISTEN_ADDR)")
 	f.String("llm-url", "", "Upstream LLM base URL (env: CERBAI_LLM_URL)")
 	f.String("token-endpoint", "", "OAuth2 token endpoint URL (env: CERBAI_TOKEN_ENDPOINT)")
 	f.String("client-id", "", "OAuth2 client ID (env: CERBAI_CLIENT_ID)")
@@ -61,18 +61,18 @@ func RegisterFlags(cmd *cobra.Command, v *viper.Viper) {
 // Load builds a Config from the bound viper instance.
 func Load(v *viper.Viper) (*Config, error) {
 	cfg := &Config{
-		ListenAddr:    v.GetString("listen-addr"),
-		LLMURL:        v.GetString("llm-url"),
-		TokenEndpoint: v.GetString("token-endpoint"),
-		ClientID:      v.GetString("client-id"),
-		ClientSecret:  v.GetString("client-secret"),
-		TLSCertFile:   v.GetString("tls-cert-file"),
-		TLSKeyFile:    v.GetString("tls-key-file"),
-		TLSCAFile:     v.GetString("tls-ca-file"),
-		TokenCacheTTL: v.GetDuration("token-cache-ttl"),
-		TokenHeader:   v.GetString("token-header"),
-		TokenPrefix:   v.GetString("token-prefix"),
-		RedisURL:      v.GetString("redis-url"),
+		ListenAddr:       v.GetString("listen-addr"),
+		LLMURL:           v.GetString("llm-url"),
+		TokenEndpoint:    v.GetString("token-endpoint"),
+		ClientID:         v.GetString("client-id"),
+		ClientSecret:     v.GetString("client-secret"),
+		TLSCertFile:      v.GetString("tls-cert-file"),
+		TLSKeyFile:       v.GetString("tls-key-file"),
+		TLSCAFile:        v.GetString("tls-ca-file"),
+		TokenCacheTTL:    v.GetDuration("token-cache-ttl"),
+		TokenHeader:      v.GetString("token-header"),
+		TokenPrefix:      v.GetString("token-prefix"),
+		RedisURL:         v.GetString("redis-url"),
 		ProxyToken:       v.GetString("proxy-token"),
 		LogLevel:         v.GetString("log-level"),
 		ClientAuthMethod: v.GetString("client-auth-method"),

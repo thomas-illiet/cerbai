@@ -3,8 +3,9 @@ services:
     build: .
     image: ghcr.io/thomas-illiet/cerbai:latest
     ports:
-      - "8080:8080"
+      - "8085:8085"
     environment:
+      CERBAI_LISTEN_ADDR: ":8085"
       CERBAI_LLM_URL: ${CERBAI_LLM_URL}
       CERBAI_TOKEN_ENDPOINT: ${CERBAI_TOKEN_ENDPOINT}
       CERBAI_CLIENT_ID: ${CERBAI_CLIENT_ID}
@@ -21,7 +22,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -39,3 +40,40 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  mock-server:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /src
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN go build -o /mock-server ./tests/perf/mock_server
+        FROM alpine:3.21
+        COPY --from=builder /mock-server /mock-server
+        ENTRYPOINT ["/mock-server"]
+    command: ["--addr", ":9090"]
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  k6:
+    image: grafana/k6:latest
+    profiles: ["perf"]
+    volumes:
+      - ./tests/perf/k6:/scripts:ro
+    environment:
+      PROXY_URL: ${PROXY_URL:-http://cerbai:8085}
+      PROXY_TOKEN: ${PROXY_TOKEN:-}
+    depends_on:
+      cerbai:
+        condition: service_healthy
+      mock-server:
+        condition: service_healthy

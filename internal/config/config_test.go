@@ -57,7 +57,7 @@ func TestRegisterFlags(t *testing.T) {
 		key      string
 		expected any
 	}{
-		{"listen-addr", "listen-addr", ":8080"},
+		{"listen-addr", "listen-addr", ":8085"},
 		{"llm-url", "llm-url", ""},
 		{"token-endpoint", "token-endpoint", ""},
 		{"client-id", "client-id", ""},
