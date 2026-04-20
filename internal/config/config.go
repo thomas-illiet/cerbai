@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/youmark/pkcs8"
 )
 
 // Config holds all proxy runtime configuration.
@@ -21,6 +23,7 @@ type Config struct {
 	ClientSecret     string
 	TLSCertFile      string
 	TLSKeyFile       string
+	TLSKeyPassword   string // optional passphrase for encrypted private key
 	TLSCAFile        string
 	TokenCacheTTL    time.Duration
 	TokenHeader      string
@@ -43,6 +46,7 @@ func RegisterFlags(cmd *cobra.Command, v *viper.Viper) {
 	f.String("client-secret", "", "OAuth2 client secret (env: CERBAI_CLIENT_SECRET)")
 	f.String("tls-cert-file", "", "Client certificate file for mTLS, optional (env: CERBAI_TLS_CERT_FILE)")
 	f.String("tls-key-file", "", "Client key file for mTLS, optional — must be set with --tls-cert-file (env: CERBAI_TLS_KEY_FILE)")
+	f.String("tls-key-password", "", "Passphrase for encrypted client key file, optional (env: CERBAI_TLS_KEY_PASSWORD)")
 	f.String("tls-ca-file", "", "Custom CA certificate file, optional (env: CERBAI_TLS_CA_FILE)")
 	f.Duration("token-cache-ttl", 5*time.Minute, "Token cache TTL (env: CERBAI_TOKEN_CACHE_TTL)")
 	f.String("token-header", "Authorization", "Header name to inject the token into (env: CERBAI_TOKEN_HEADER)")
@@ -68,6 +72,7 @@ func Load(v *viper.Viper) (*Config, error) {
 		ClientSecret:     v.GetString("client-secret"),
 		TLSCertFile:      v.GetString("tls-cert-file"),
 		TLSKeyFile:       v.GetString("tls-key-file"),
+		TLSKeyPassword:   v.GetString("tls-key-password"),
 		TLSCAFile:        v.GetString("tls-ca-file"),
 		TokenCacheTTL:    v.GetDuration("token-cache-ttl"),
 		TokenHeader:      v.GetString("token-header"),
@@ -135,8 +140,8 @@ func (c *Config) BuildTLSConfig() (*tls.Config, error) {
 		return &tls.Config{RootCAs: pool}, nil
 	}
 
-	// mTLS: load client certificate pair.
-	cert, err := tls.LoadX509KeyPair(c.TLSCertFile, c.TLSKeyFile)
+	// mTLS: load client certificate pair (with optional key decryption).
+	cert, err := c.loadKeyPair()
 	if err != nil {
 		return nil, fmt.Errorf("load client cert: %w", err)
 	}
@@ -155,4 +160,48 @@ func (c *Config) BuildTLSConfig() (*tls.Config, error) {
 	}
 
 	return tlsCfg, nil
+}
+
+// loadKeyPair loads the certificate and private key, decrypting the key with
+// TLSKeyPassword when the PEM block is an encrypted PKCS#8 key
+// ("ENCRYPTED PRIVATE KEY"). Generate one with:
+//
+//	openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 \
+//	  -aes-256-cbc -out key.pem
+func (c *Config) loadKeyPair() (tls.Certificate, error) {
+	certBytes, err := os.ReadFile(c.TLSCertFile)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("read cert file: %w", err)
+	}
+	keyBytes, err := os.ReadFile(c.TLSKeyFile)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("read key file: %w", err)
+	}
+
+	if c.TLSKeyPassword == "" {
+		return tls.X509KeyPair(certBytes, keyBytes)
+	}
+
+	block, _ := pem.Decode(keyBytes)
+	if block == nil {
+		return tls.Certificate{}, fmt.Errorf("failed to decode PEM block from key file %s", c.TLSKeyFile)
+	}
+	if block.Type != "ENCRYPTED PRIVATE KEY" {
+		return tls.Certificate{}, fmt.Errorf(
+			"key file %s does not use PKCS#8 encryption (got %q); convert with: "+
+				"openssl pkcs8 -topk8 -v2 aes-256-cbc -in %s -out key-pkcs8.pem",
+			c.TLSKeyFile, block.Type, c.TLSKeyFile,
+		)
+	}
+
+	privKey, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(c.TLSKeyPassword))
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("decrypt PKCS#8 key: %w", err)
+	}
+	privDER, err := x509.MarshalPKCS8PrivateKey(privKey)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("marshal decrypted key: %w", err)
+	}
+	decryptedPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER})
+	return tls.X509KeyPair(certBytes, decryptedPEM)
 }

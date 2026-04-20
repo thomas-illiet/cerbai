@@ -14,7 +14,27 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/youmark/pkcs8"
 )
+
+// generateEncryptedKey returns a PKCS#8 "ENCRYPTED PRIVATE KEY" PEM block
+// protected with the given password (PBES2/AES-256-CBC).
+func generateEncryptedKey(t *testing.T, keyPEM []byte, password string) []byte {
+	t.Helper()
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		t.Fatal("failed to decode key PEM")
+	}
+	privKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse EC key: %v", err)
+	}
+	encDER, err := pkcs8.MarshalPrivateKey(privKey, []byte(password), nil)
+	if err != nil {
+		t.Fatalf("encrypt key: %v", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: encDER})
+}
 
 // generateSelfSignedCert creates a valid self-signed certificate and key in PEM form.
 func generateSelfSignedCert(t *testing.T) (certPEM, keyPEM []byte) {
@@ -266,6 +286,9 @@ func TestBuildTLSConfig(t *testing.T) {
 	keyPath := tmpDir + "/key.pem"
 	caPath := tmpDir + "/ca.pem"
 
+	encKeyPEM := generateEncryptedKey(t, keyPEM, "s3cr3t")
+	encKeyPath := tmpDir + "/key-enc.pem"
+
 	for _, pair := range []struct {
 		path string
 		data []byte
@@ -273,6 +296,7 @@ func TestBuildTLSConfig(t *testing.T) {
 		{certPath, certPEM},
 		{keyPath, keyPEM},
 		{caPath, caPEM},
+		{encKeyPath, encKeyPEM},
 	} {
 		if err := os.WriteFile(pair.path, pair.data, 0o600); err != nil {
 			t.Fatalf("write %s: %v", pair.path, err)
@@ -359,6 +383,34 @@ func TestBuildTLSConfig(t *testing.T) {
 			},
 			wantErr: true,
 			wantNil: true, // BuildTLSConfig returns nil on error
+		},
+		{
+			name: "mtls with encrypted key and correct password",
+			cfg: &Config{
+				LLMURL:         "https://llm.example.com",
+				TokenEndpoint:  "https://auth.example.com/token",
+				ClientID:       "client",
+				ClientSecret:   "secret",
+				TLSCertFile:    certPath,
+				TLSKeyFile:     tmpDir + "/key-enc.pem",
+				TLSKeyPassword: "s3cr3t",
+			},
+			wantErr: false,
+			wantNil: false,
+		},
+		{
+			name: "mtls with encrypted key and wrong password",
+			cfg: &Config{
+				LLMURL:         "https://llm.example.com",
+				TokenEndpoint:  "https://auth.example.com/token",
+				ClientID:       "client",
+				ClientSecret:   "secret",
+				TLSCertFile:    certPath,
+				TLSKeyFile:     tmpDir + "/key-enc.pem",
+				TLSKeyPassword: "wrongpassword",
+			},
+			wantErr: true,
+			wantNil: true,
 		},
 	}
 
