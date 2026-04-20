@@ -25,9 +25,10 @@ type Config struct {
 	TokenCacheTTL time.Duration
 	TokenHeader   string
 	TokenPrefix   string
-	RedisURL      string // optional — empty means in-memory cache
-	ProxyToken    string // optional — empty disables proxy auth
-	LogLevel      string // debug, info, warn, error
+	RedisURL         string // optional — empty means in-memory cache
+	ProxyToken       string // optional — empty disables proxy auth
+	LogLevel         string // debug, info, warn, error
+	ClientAuthMethod string // "basic" (default) or "form"
 }
 
 // RegisterFlags registers all CLI flags on cmd and binds them to viper.
@@ -49,6 +50,7 @@ func RegisterFlags(cmd *cobra.Command, v *viper.Viper) {
 	f.String("redis-url", "", "Redis URL for shared token cache, optional (env: CERBAI_REDIS_URL)")
 	f.String("proxy-token", "", "Bearer token required to use the proxy, optional — omit to disable auth (env: CERBAI_PROXY_TOKEN)")
 	f.String("log-level", "info", "Log level: debug, info, warn, error (env: CERBAI_LOG_LEVEL)")
+	f.String("client-auth-method", "basic", "OAuth2 client auth method: basic or form (env: CERBAI_CLIENT_AUTH_METHOD)")
 
 	v.SetEnvPrefix("CERBAI")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -71,8 +73,9 @@ func Load(v *viper.Viper) (*Config, error) {
 		TokenHeader:   v.GetString("token-header"),
 		TokenPrefix:   v.GetString("token-prefix"),
 		RedisURL:      v.GetString("redis-url"),
-		ProxyToken:    v.GetString("proxy-token"),
-		LogLevel:      v.GetString("log-level"),
+		ProxyToken:       v.GetString("proxy-token"),
+		LogLevel:         v.GetString("log-level"),
+		ClientAuthMethod: v.GetString("client-auth-method"),
 	}
 
 	if err := validate(cfg); err != nil {
@@ -90,6 +93,10 @@ func validate(cfg *Config) error {
 		{"--token-endpoint / CERBAI_TOKEN_ENDPOINT", cfg.TokenEndpoint},
 		{"--client-id / CERBAI_CLIENT_ID", cfg.ClientID},
 		{"--client-secret / CERBAI_CLIENT_SECRET", cfg.ClientSecret},
+	}
+
+	if cfg.ClientAuthMethod != "basic" && cfg.ClientAuthMethod != "form" {
+		return fmt.Errorf("--client-auth-method must be \"basic\" or \"form\", got %q", cfg.ClientAuthMethod)
 	}
 
 	// cert and key must be provided together if either one is set.

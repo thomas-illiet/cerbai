@@ -23,7 +23,7 @@ type RedisCache struct {
 
 // NewRedis creates a Redis-backed token cache. redisURL must be a valid Redis
 // URL (e.g. "redis://localhost:6379/0" or "rediss://..." for TLS).
-func NewRedis(tlsCfg *tls.Config, endpoint, clientID, secret string, ttl time.Duration, redisURL string) (*RedisCache, error) {
+func NewRedis(tlsCfg *tls.Config, endpoint, clientID, secret, authMethod string, ttl time.Duration, redisURL string) (*RedisCache, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis URL: %w", err)
@@ -37,7 +37,7 @@ func NewRedis(tlsCfg *tls.Config, endpoint, clientID, secret string, ttl time.Du
 	}
 
 	return &RedisCache{
-		fetcher:       newFetcher(tlsCfg, endpoint, clientID, secret),
+		fetcher:       newFetcher(tlsCfg, endpoint, clientID, secret, authMethod),
 		client:        client,
 		configuredTTL: ttl,
 	}, nil

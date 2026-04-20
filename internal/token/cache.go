@@ -25,23 +25,25 @@ type tokenResponse struct {
 // fetcher handles the OAuth2 client_credentials HTTP call over mTLS.
 // It is shared between MemoryCache and RedisCache.
 type fetcher struct {
-	httpClient    *http.Client
-	tokenEndpoint string
-	clientID      string
-	clientSecret  string
+	httpClient       *http.Client
+	tokenEndpoint    string
+	clientID         string
+	clientSecret     string
+	clientAuthMethod string // "basic" or "form"
 }
 
-func newFetcher(tlsCfg *tls.Config, endpoint, clientID, secret string) *fetcher {
+func newFetcher(tlsCfg *tls.Config, endpoint, clientID, secret, authMethod string) *fetcher {
 	// tlsCfg may be nil (standard HTTPS) or non-nil (custom CA / mTLS).
 	client := &http.Client{Timeout: 10 * time.Second}
 	if tlsCfg != nil {
 		client.Transport = &http.Transport{TLSClientConfig: tlsCfg}
 	}
 	return &fetcher{
-		httpClient:    client,
-		tokenEndpoint: endpoint,
-		clientID:      clientID,
-		clientSecret:  secret,
+		httpClient:       client,
+		tokenEndpoint:    endpoint,
+		clientID:         clientID,
+		clientSecret:     secret,
+		clientAuthMethod: authMethod,
 	}
 }
 
@@ -61,6 +63,7 @@ func obfuscate(s string) string {
 func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (string, time.Duration, error) {
 	slog.Debug("fetching token",
 		"endpoint", f.tokenEndpoint,
+		"client_auth_method", f.clientAuthMethod,
 		"client_id", obfuscate(f.clientID),
 		"client_secret", obfuscate(f.clientSecret),
 		"client_id_set", f.clientID != "",
@@ -69,14 +72,19 @@ func (f *fetcher) getToken(ctx context.Context, configuredTTL time.Duration) (st
 
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
-	form.Set("client_id", f.clientID)
-	form.Set("client_secret", f.clientSecret)
+	if f.clientAuthMethod == "form" {
+		form.Set("client_id", f.clientID)
+		form.Set("client_secret", f.clientSecret)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.tokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", 0, fmt.Errorf("build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if f.clientAuthMethod == "basic" {
+		req.SetBasicAuth(f.clientID, f.clientSecret)
+	}
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
@@ -136,9 +144,9 @@ type MemoryCache struct {
 }
 
 // NewMemory creates an in-memory token cache backed by an mTLS token endpoint.
-func NewMemory(tlsCfg *tls.Config, endpoint, clientID, secret string, ttl time.Duration) *MemoryCache {
+func NewMemory(tlsCfg *tls.Config, endpoint, clientID, secret, authMethod string, ttl time.Duration) *MemoryCache {
 	return &MemoryCache{
-		fetcher:       newFetcher(tlsCfg, endpoint, clientID, secret),
+		fetcher:       newFetcher(tlsCfg, endpoint, clientID, secret, authMethod),
 		configuredTTL: ttl,
 	}
 }

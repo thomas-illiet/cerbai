@@ -92,13 +92,13 @@ func run(v *viper.Viper) error {
 	var tokenCache proxy.TokenFetcher
 	if cfg.RedisURL != "" {
 		slog.Info("using Redis token cache", "url", cfg.RedisURL)
-		tokenCache, err = token.NewRedis(tlsCfg, cfg.TokenEndpoint, cfg.ClientID, cfg.ClientSecret, cfg.TokenCacheTTL, cfg.RedisURL)
+		tokenCache, err = token.NewRedis(tlsCfg, cfg.TokenEndpoint, cfg.ClientID, cfg.ClientSecret, cfg.ClientAuthMethod, cfg.TokenCacheTTL, cfg.RedisURL)
 		if err != nil {
 			return fmt.Errorf("redis token cache: %w", err)
 		}
 	} else {
 		slog.Info("using in-memory token cache")
-		tokenCache = token.NewMemory(tlsCfg, cfg.TokenEndpoint, cfg.ClientID, cfg.ClientSecret, cfg.TokenCacheTTL)
+		tokenCache = token.NewMemory(tlsCfg, cfg.TokenEndpoint, cfg.ClientID, cfg.ClientSecret, cfg.ClientAuthMethod, cfg.TokenCacheTTL)
 	}
 
 	// Warm up the token cache at startup; non-fatal so the proxy can still start.

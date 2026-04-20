@@ -252,7 +252,7 @@ func TestFetcher_getToken_WithNilTLS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f := newFetcher(nil, server.URL, "client", "secret")
+	f := newFetcher(nil, server.URL, "client", "secret", "basic")
 	tok, ttl, err := f.getToken(context.Background(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "test-token", tok)
@@ -267,7 +267,7 @@ func TestFetcher_getToken_WithCustomTLS(t *testing.T) {
 	defer server.Close()
 
 	tlsCfg := server.Client().Transport.(*http.Transport).TLSClientConfig
-	f := newFetcher(tlsCfg, server.URL, "client", "secret")
+	f := newFetcher(tlsCfg, server.URL, "client", "secret", "basic")
 	tok, ttl, err := f.getToken(context.Background(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "tls-token", tok)
@@ -294,32 +294,54 @@ func TestFetcher_getToken_MinTTLFiveSeconds(t *testing.T) {
 }
 
 func TestFetcher_getToken_BuildsRequestCorrectly(t *testing.T) {
-	var capturedMethod, capturedContentType, capturedBody string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedMethod = r.Method
-		capturedContentType = r.Header.Get("Content-Type")
-		b, _ := io.ReadAll(r.Body)
-		capturedBody = string(b)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"access_token": "test-token", "expires_in": 3600}`))
-	}))
-	defer server.Close()
-
-	f := &fetcher{
-		httpClient:    &http.Client{},
-		tokenEndpoint: server.URL,
-		clientID:      "my-client-id",
-		clientSecret:  "my-client-secret",
+	tests := []struct {
+		name             string
+		authMethod       string
+		wantBodyClientID bool
+		wantBasicAuth    bool
+	}{
+		{"form", "form", true, false},
+		{"basic", "basic", false, true},
 	}
 
-	_, _, err := f.getToken(context.Background(), 5*time.Minute)
-	assert.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedMethod, capturedContentType, capturedBody, capturedAuth string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedMethod = r.Method
+				capturedContentType = r.Header.Get("Content-Type")
+				capturedAuth = r.Header.Get("Authorization")
+				b, _ := io.ReadAll(r.Body)
+				capturedBody = string(b)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"access_token": "test-token", "expires_in": 3600}`))
+			}))
+			defer server.Close()
 
-	assert.Equal(t, http.MethodPost, capturedMethod)
-	assert.Equal(t, "application/x-www-form-urlencoded", capturedContentType)
-	assert.Contains(t, capturedBody, "grant_type=client_credentials")
-	assert.Contains(t, capturedBody, "client_id=my-client-id")
-	assert.Contains(t, capturedBody, "client_secret=my-client-secret")
+			f := &fetcher{
+				httpClient:       &http.Client{},
+				tokenEndpoint:    server.URL,
+				clientID:         "my-client-id",
+				clientSecret:     "my-client-secret",
+				clientAuthMethod: tt.authMethod,
+			}
+
+			_, _, err := f.getToken(context.Background(), 5*time.Minute)
+			assert.NoError(t, err)
+			assert.Equal(t, http.MethodPost, capturedMethod)
+			assert.Equal(t, "application/x-www-form-urlencoded", capturedContentType)
+			assert.Contains(t, capturedBody, "grant_type=client_credentials")
+			if tt.wantBodyClientID {
+				assert.Contains(t, capturedBody, "client_id=my-client-id")
+				assert.Contains(t, capturedBody, "client_secret=my-client-secret")
+				assert.Empty(t, capturedAuth)
+			} else {
+				assert.NotContains(t, capturedBody, "client_id")
+				assert.NotContains(t, capturedBody, "client_secret")
+				assert.Contains(t, capturedAuth, "Basic ")
+			}
+		})
+	}
 }
 
 func TestFetcher_getToken_HTTPTimeout(t *testing.T) {

@@ -105,6 +105,7 @@ func TestLoad(t *testing.T) {
 	v.Set("redis-url", "redis://localhost:6379")
 	v.Set("proxy-token", "my-token")
 	v.Set("log-level", "debug")
+	v.Set("client-auth-method", "basic")
 
 	cfg, err := Load(v)
 	if err != nil {
@@ -164,10 +165,11 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid config",
 			cfg: &Config{
-				LLMURL:        "https://llm.example.com",
-				TokenEndpoint: "https://auth.example.com/token",
-				ClientID:      "client",
-				ClientSecret:  "secret",
+				LLMURL:           "https://llm.example.com",
+				TokenEndpoint:    "https://auth.example.com/token",
+				ClientID:         "client",
+				ClientSecret:     "secret",
+				ClientAuthMethod: "basic",
 			},
 			wantErr: false,
 		},
@@ -232,12 +234,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "tls cert and key both provided",
 			cfg: &Config{
-				LLMURL:        "https://llm.example.com",
-				TokenEndpoint: "https://auth.example.com/token",
-				ClientID:      "client",
-				ClientSecret:  "secret",
-				TLSCertFile:   "/path/to/cert.pem",
-				TLSKeyFile:    "/path/to/key.pem",
+				LLMURL:           "https://llm.example.com",
+				TokenEndpoint:    "https://auth.example.com/token",
+				ClientID:         "client",
+				ClientSecret:     "secret",
+				TLSCertFile:      "/path/to/cert.pem",
+				TLSKeyFile:       "/path/to/key.pem",
+				ClientAuthMethod: "basic",
 			},
 			wantErr: false,
 		},

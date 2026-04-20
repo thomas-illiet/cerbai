@@ -37,7 +37,7 @@ func TestNewRedis(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewRedis(nil, tt.endpoint, tt.clientID, tt.secret, tt.ttl, tt.redisURL)
+			_, err := NewRedis(nil, tt.endpoint, tt.clientID, tt.secret, "basic", tt.ttl, tt.redisURL)
 			if !tt.wantErr && err == nil {
 				t.Error("NewRedis() expected error but got none")
 			}
@@ -66,7 +66,7 @@ func TestNewMemory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache := NewMemory(nil, tt.endpoint, tt.clientID, tt.secret, tt.ttl)
+			cache := NewMemory(nil, tt.endpoint, tt.clientID, tt.secret, "basic", tt.ttl)
 			if cache == nil {
 				t.Error("NewMemory() returned nil")
 			}
